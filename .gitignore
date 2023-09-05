@@ -4,3 +4,6 @@
 
 # PyCharm local
 .idea/
+
+# generic scratch file
+scratch.py
