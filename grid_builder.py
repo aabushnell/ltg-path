@@ -16,9 +16,11 @@ from scipy.sparse.csgraph import dijkstra
 import cost_functions as cf
 import grid_helpers as gh
 
+
 class elevationGrid:
 
-    def __init__(self, elevation_array, cell_size, starting_latitude, starting_longitude):
+    def __init__(self, elevation_array, cell_size,
+                 starting_latitude, starting_longitude):
         self.elev_arr = elevation_array
         self.cell_size = cell_size
         self.lat_start = starting_latitude
@@ -28,16 +30,17 @@ class elevationGrid:
         self.lon_count = self.elev_arr.shape[1]
         self.cell_count = self.lat_count * self.lon_count
 
-        self.node_ids = np.arange(0, self.cell_count).reshape(self.lat_count, self.lon_count)
+        self.node_ids = (np.arange(0, self.cell_count)
+                         .reshape(self.lat_count, self.lon_count))
 
     def get_travel_cost(self, start_y, start_x, end_y, end_x):
         """
 
-        :param start_y:
-        :param start_x:
-        :param end_y:
-        :param end_x:
-        :return:
+        :param int start_y:
+        :param int start_x:
+        :param int end_y:
+        :param int end_x:
+        :return: float
         """
 
         start_elev = self.elev_arr[start_y, start_x]
@@ -67,11 +70,14 @@ class elevationGrid:
         for i in range(0, self.lon_count):
             for j in range(0, self.lat_count):
                 id_orig = self.node_ids[i, j]
-                for di, dj in gh.get_neighbors(i, j):
-                    dist_mat[id_orig, self.node_ids[i + di, j + dj]] = self.get_travel_cost(i, j, i + di, j + dj)
+                for di, dj in gh.get_neighbors(i, j, self.lon_count,
+                                               self.lat_count):
+                    dist_mat[id_orig, self.node_ids[i + di, j + dj]] = \
+                        self.get_travel_cost(i, j, i + di, j + dj)
 
         self.dist_mat = dist_mat
         return dist_mat
+
 
 
 
