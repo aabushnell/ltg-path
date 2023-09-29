@@ -9,7 +9,7 @@ coeffs = {
     'down_steep_cutoff': -0.2125,  # angle
     'down_steep': -25/9,  # cost per meter (vertical)
     'sea': 0.9,  # cost per meter (horizontal) premium
-    'loading': 3600,  # equivalent to 1 hr of transport
+    'loading': 3600,  # == 1hr at 1m/s
     'river': 0.9,  # cost per meter (horizontal) premium
 }
 
