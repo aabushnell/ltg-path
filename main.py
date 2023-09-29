@@ -1,32 +1,38 @@
 import numpy as np
-from timeit import timeit
 
 import grid_builder as gb
+import grid_helpers as gh
+import file_reader as fr
+import rasterize_rivers as rr
 
-def read_int(f):
-    bytes = f.read(2)
-    height = int.from_bytes(bytes, 'big', signed=True)
-    return height
+CELL_SIZE = 1/12
 
-lat = []
-with open('/Users/aaron/Desktop/ETOPO5.DAT', 'rb') as f:
-    for i in range(2160):
-        lon = []
-        for j in range(4320):
-            height = read_int(f)
-            lon.append(height)
-        lat.append(lon)
+elev_full = fr.read_elevation_full()
+river_full = rr.read_rivers_raster(cellsize=CELL_SIZE)
+full_elev_grid = gb.ElevationGrid(elev_full, cell_size=CELL_SIZE,
+                                  lat_start=0, lon_start=0,
+                                  river_array=river_full)
 
-arr_full = np.array(lat)
+# print(full_elev_grid.grid._node_ids.shape)
 
-# arr = arr_full[490:514, 20:44]
-arr = arr_full[490:495, 20:25]
+# full_elev_grid.mask_deep_sea(3)
 
-# costs:
-cost_array = [1, 1, 1]
+COARSE_DIM = 3
+# Y_START = 626
+# X_START = 1466
 
-grid = gb.elevationGrid(arr, cell_size=(1/12), starting_latitude=90, starting_longitude=0)
+Y_START = 490
+X_START = 20
 
-print(arr)
-print(grid.node_ids)
-print(grid.get_cost_matrix())
+y_end = Y_START + COARSE_DIM*3 - 1
+x_end = X_START + COARSE_DIM*3 - 1
+
+grid = full_elev_grid.subgrid(Y_START, X_START, y_end, x_end)
+
+print(grid.grid)
+print(grid.elev_arr)
+print(grid.river_arr)
+
+
+# grid.build_cost_matrix()
+# print(grid.neigbor_grid_output(flat_inner_matrix=True))
