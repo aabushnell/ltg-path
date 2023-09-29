@@ -1,7 +1,7 @@
 # TODO
 
 - Balance cost units
-- Parse river info
+- Add dest filtering for land
 - Harbors for deep-sea travel nodes
 - Parallelization
 - Visualization
