@@ -1,8 +1,7 @@
 # TODO
 
-- Add Dijkstra calculation
-- Deep-sea tile mask
-- River support
+- Balance cost units
+- Parse river info
 - Harbors for deep-sea travel nodes
 - Parallelization
 - Visualization
