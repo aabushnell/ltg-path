@@ -3,17 +3,17 @@ TODO
 """
 
 coeffs = {
-    'flat': 0.72,  # meters/second
-    'up': 6,  # meters/hour
-    'down_mod': 2,  # meters/hour
+    'flat': 1,  # cost per meter (horizontal)
+    'up': 25/3,  # cost per meter (vertical)
+    'down_mod': 25/9,  # cost per meter (vertical)
     'down_steep_cutoff': -0.2125,  # angle
-    'down_steep': -2,  # meters/hour
-    'sea': 0.9,  # meters/sec
-    'loading': 1,  # equivalent to 1 hr of transport
-    'river': 0.9,  # meters/sec
+    'down_steep': -25/9,  # cost per meter (vertical)
+    'sea': 0.9,  # cost per meter (horizontal) premium
+    'loading': 3600,  # equivalent to 1 hr of transport
+    'river': 0.9,  # cost per meter (horizontal) premium
 }
 
-UNIT_CONV = 1000 / 3600  # km/h to m/s
+KM_TO_M = 1000  # kilometers to meters conversion
 
 
 def transport_method_cost(distance: float,
@@ -28,16 +28,16 @@ def transport_method_cost(distance: float,
     Also features a special cost for travel between adjacent
     river nodes.
     """
-    if elevation_start >= 0 and elevation_end >= 0:
+    if elevation_start >= 0 and elevation_end >= 0:  # land travel
+        cost = (coeffs['flat'] * distance * KM_TO_M
+                + elevation_change_cost(elevation_start, elevation_end))
         if river_travel:
-            cost = coeffs['river'] * coeffs['flat'] * distance * UNIT_CONV
-        else:
-            cost = (coeffs['flat'] * distance * UNIT_CONV
-                    + elevation_change_cost(elevation_start, elevation_end))
-    elif elevation_start < 0 and elevation_end < 0:
-        cost = coeffs['sea'] * coeffs['flat'] * distance * UNIT_CONV
-    else:
-        cost = coeffs['loading'] + coeffs['flat'] * distance * UNIT_CONV
+            # decreased cost for travel along major rivers
+            cost *= coeffs['river']
+    elif elevation_start < 0 and elevation_end < 0:  # ocean travel
+        cost = coeffs['sea'] * coeffs['flat'] * distance * KM_TO_M
+    else:  # loading/unloading (from land to sea or sea to land)
+        cost = coeffs['loading'] + coeffs['flat'] * distance * KM_TO_M
     return cost
 
 
