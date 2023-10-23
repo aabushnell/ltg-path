@@ -75,6 +75,59 @@ class Grid:
         return new_grid
 
 
+class NeighborCostMatrix:
+
+    def __init__(self, grid_id: int,
+                 cost_array: np.ndarray[np.ndarray[np.ndarray[float]]]):
+        self.id = grid_id
+        self.costs = cost_array
+        self.dim = cost_array.shape[2]
+
+    def __str__(self):
+        return self.costs.__str__()
+
+    @classmethod
+    def from_file(cls, filepath: str) -> NeighborCostMatrix:
+        _ = [[[0.1]]]
+        return NeighborCostMatrix(0, np.array(_))
+
+    def to_file(self, filepath: str) -> None:
+        return
+
+    def apply_weights(self,
+                      orig_weights: np.ndarray[float],
+                      dest_weights: np.ndarray[np.ndarray[float]]
+                      ) -> np.ndarray[float]:
+        if (orig_weights.shape[0] != self.dim
+                or dest_weights.shape[1] != self.dim
+                or dest_weights.shape[0] != 8):
+            print(f"""Origin and destination weight arrays 
+                      must be of shape ({self.dim}) and 
+                      (8, {self.dim}) respectively.
+                   """)
+            raise ValueError
+
+        orig = np.full((8, 1, self.dim), orig_weights)
+        dest = dest_weights.reshape((8, self.dim, 1))
+        return np.matmul(np.matmul(orig, self.costs), dest).flatten()
+
+    def uniform_weights(self, elev_array: np.ndarray[np.ndarray[int]]
+                        ) -> np.ndarray[float]:
+        orig_values = gh.get_offset_subarray(elev_array, 0, 0).flatten()
+        orig_weights = np.array([1 / (orig_values >= 0).sum()
+                                 if n >= 0 else 0 for n in orig_values])
+
+        dest_list = []
+        for subarray in gh.all_outside_subarrays(elev_array):
+            values = subarray.flatten()
+            weights = np.array([1 / (values >= 0).sum()
+                                if n >= 0 else 0 for n in values])
+            dest_list.append(weights)
+        dest_weights = np.array(dest_list)
+
+        return self.apply_weights(orig_weights, dest_weights)
+
+
 class DjikstraGrid:
     """
     Base object for all grids where pathfinding
@@ -93,12 +146,13 @@ class DjikstraGrid:
         self.cost_mat = cost_mat
 
     @classmethod
-    def from_grid(cls, grid: Grid, cost_mat: dok_matrix | None = None):
+    def from_grid(cls, grid: Grid,
+                  cost_mat: dok_matrix | None = None) -> DjikstraGrid:
         return DjikstraGrid(grid.cell_size, grid.lat_start,
                             grid.lon_start, grid.lat_count,
                             grid.lon_count, cost_mat)
 
-    def assign_cost_mat(self, cost_mat: dok_matrix):
+    def assign_cost_mat(self, cost_mat: dok_matrix) -> None:
         self.cost_mat = cost_mat
 
     # noinspection PyTupleAssignmentBalance,PyTypeChecker
@@ -130,14 +184,18 @@ class DjikstraGrid:
 
 
 class ElevationGrid(DjikstraGrid):
+    DEEP_SEA_DEPTH = 9999
 
     # ------------
     # constructors
     # ------------
 
-    def __init__(self, elevation_array: np.ndarray[np.ndarray[int]],
+    def __init__(self, grid_id: int,
+                 elevation_array: np.ndarray[np.ndarray[int]],
                  cell_size: float, lat_start: float, lon_start: float,
+                 deep_sea_depth: int | None = None,
                  river_array: np.ndarray[np.ndarray[int]] | None = None):
+        self.id = grid_id
         self.elev_arr = elevation_array
 
         self.array_count_y = self.elev_arr.shape[0]
@@ -156,6 +214,11 @@ class ElevationGrid(DjikstraGrid):
                 raise ValueError
             self.river_arr = river_array
 
+        self.deep_sea_depth = deep_sea_depth
+        self.elev_arr_deep = self.elev_arr.copy()
+        if deep_sea_depth is not None:
+            self.mask_deep_sea(depth=deep_sea_depth)
+
         self.land_nodes = self.grid.as_matrix()[self.elev_arr > 0]
         self.land_center_nodes = None
         self.grid_center = None
@@ -164,13 +227,14 @@ class ElevationGrid(DjikstraGrid):
     # noinspection PyMethodOverriding
     # violates LSP but I don't care
     @classmethod
-    def from_grid(cls, elevation_array: np.ndarray[np.ndarray[int]],
-                  grid: Grid,
+    def from_grid(cls, grid_id: int, grid: Grid,
+                  elevation_array: np.ndarray[np.ndarray[int]],
+                  deep_sea_depth: int | None = None,
                   river_array: np.ndarray[np.ndarray[int]] | None = None
                   ) -> ElevationGrid:
-        new_grid = ElevationGrid(elevation_array, grid.cell_size,
+        new_grid = ElevationGrid(grid_id, elevation_array, grid.cell_size,
                                  grid.lat_start, grid.lon_start,
-                                 river_array)
+                                 deep_sea_depth, river_array)
         if (elevation_array.shape[0] != grid.lat_count
                 or elevation_array.shape[1] != grid.lon_count):
             print('Elevation array dimensions do not match provided grid')
@@ -182,8 +246,10 @@ class ElevationGrid(DjikstraGrid):
     # returning subgrids
     # ------------------
 
-    def subgrid_from_mask(self, mask: Grid,
-                          reset_ids: bool = True) -> ElevationGrid:
+    def subgrid_from_mask(self, grid_id: int, mask: Grid,
+                          reset_ids: bool = True,
+                          deep_sea_depth: int | None = None
+                          ) -> ElevationGrid:
         if (mask not in self.grid) or (self.grid.cell_size != mask.cell_size):
             print('Invalid masking grid, not proper subset of grid')
             raise ValueError
@@ -192,7 +258,8 @@ class ElevationGrid(DjikstraGrid):
                                    self.elev_arr)
         river_array = gh.mask_array(self.grid.as_matrix(), mask.as_matrix(),
                                     self.river_arr)
-        new_grid = ElevationGrid.from_grid(elev_array, mask, river_array)
+        new_grid = ElevationGrid.from_grid(grid_id, mask, elev_array,
+                                           deep_sea_depth, river_array)
 
         if reset_ids:
             new_grid.grid.reset_ids()
@@ -200,10 +267,11 @@ class ElevationGrid(DjikstraGrid):
         else:
             return new_grid
 
-    def subgrid(self, y1: int, x1: int, y2: int, x2: int,
-                reset_ids: bool = True) -> ElevationGrid:
+    def subgrid(self, grid_id: int, y1: int, x1: int, y2: int, x2: int,
+                reset_ids: bool = True, deep_sea_depth: int | None = None
+                ) -> ElevationGrid:
         mask = self.grid.subgrid(y1, x1, y2, x2)
-        return self.subgrid_from_mask(mask, reset_ids)
+        return self.subgrid_from_mask(grid_id, mask, reset_ids, deep_sea_depth)
 
     # ------------------
     # define cost matrix
@@ -211,8 +279,8 @@ class ElevationGrid(DjikstraGrid):
 
     def travel_cost(self, start_y: int, start_x: int,
                     end_y: int, end_x: int) -> float:
-        start_elev = self.elev_arr[start_y, start_x]
-        end_elev = self.elev_arr[end_y, end_x]
+        start_elev = self.elev_arr_deep[start_y, start_x]
+        end_elev = self.elev_arr_deep[end_y, end_x]
 
         if (self.river_arr[start_y, start_x]
                 + self.river_arr[end_y, end_x] == 2):
@@ -256,18 +324,21 @@ class ElevationGrid(DjikstraGrid):
     # modify grid values
     # ------------------
 
-    def mask_deep_sea(self, depth: int, deep_sea_val: int = 9999) -> None:
+    def mask_deep_sea(self, depth: int,
+                      deep_sea_val: int = DEEP_SEA_DEPTH) -> None:
         for y, x in product(range(0, self.grid.lat_count),
                             range(0, self.grid.lon_count)):
             if self.elev_arr[y, x] > 0:
-                continue
-            indices = gh.get_valid_neigbors_split(y, x, depth,
-                                                  self.grid.lat_count,
-                                                  self.grid.lon_count)
-            elevs = self.elev_arr[indices]
-            if np.logical_and(elevs > 0, elevs < deep_sea_val).any():
-                continue
-            self.elev_arr[y, x] = deep_sea_val
+                self.elev_arr_deep[y, x] = self.elev_arr[y, x]
+            else:
+                indices = gh.get_valid_neigbors_split(y, x, depth,
+                                                      self.grid.lat_count,
+                                                      self.grid.lon_count)
+                elevs = self.elev_arr_deep[indices]
+                if np.logical_and(elevs > 0, elevs < deep_sea_val).any():
+                    self.elev_arr_deep[y, x] = self.elev_arr[y, x]
+                else:
+                    self.elev_arr_deep[y, x] = deep_sea_val
 
     def add_river_array(self,
                         river_array: np.ndarray[np.ndarray[int]]) -> None:
@@ -306,8 +377,8 @@ class ElevationGrid(DjikstraGrid):
         self.elev_center = gh.get_offset_subarray(self.elev_arr, 0, 0)
         self.land_center_nodes = self.grid_center[self.elev_center > 0]
 
-    def neigbor_grid_output(self,
-                            flat_inner_matrix: bool = False) -> np.ndarray:
+    def neigbor_grid_output(self, flat_inner_matrix: bool = False
+                            ) -> NeighborCostMatrix:
         self.calc_center()
         full_grid = self.distance_to_neighbors()
 
@@ -327,4 +398,4 @@ class ElevationGrid(DjikstraGrid):
             offsets.append(origins)
 
         output = np.array(offsets)
-        return output
+        return NeighborCostMatrix(self.id, output)
