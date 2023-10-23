@@ -48,6 +48,12 @@ def get_valid_neighbors(y_pos: int, x_pos: int, depth: int,
                         y_dim: int, x_dim: int) -> list[tuple[int, int]]:
     """
     Returns the relative positions of valid neighbor points in a 2D grid.
+    :param y_pos: The y-coordinate of center point in grid
+    :param x_pos: The x-coordinate of center point in grid
+    :param depth: The number of steps away from center point to search
+    :param y_dim: The number of points in grid along y-axis
+    :param x_dim: The number of points in grid along x-axis
+    :return: A list of tuples (y-position, x-position) of valid neighbors
     """
     return [(y_pos + dy, x_pos + dx) for dy, dx
             in product(range(-1 * depth, depth + 1),
@@ -60,6 +66,18 @@ def get_valid_neighbors(y_pos: int, x_pos: int, depth: int,
 def get_valid_neigbors_split(y_pos: int, x_pos: int, depth: int,
                              y_dim: int, x_dim: int
                              ) -> tuple[list[int], list[int]]:
+    """
+    Returns the relative positions of valid neighbor points in a 2D grid
+    formatted as a tuple of two lists with corresponding y and x
+    coordinates of points.
+    :param y_pos: The y-coordinate of center point in grid
+    :param x_pos: The x-coordinate of center point in grid
+    :param depth: The number of steps away from center point to search
+    :param y_dim: The number of points in grid along y-axis
+    :param x_dim: The number of points in grid along x-axis
+    :return: A tuple of lists of y and x coordinates (respectively)
+    that together define the points of valid neighbors.
+    """
     pn = get_valid_neighbors(y_pos, x_pos, depth, y_dim, x_dim)
 
     ys = [x[0] for x in pn]
@@ -82,6 +100,17 @@ def get_offset_subarray(grid: np.ndarray[np.ndarray[int]],
     col_end = grid_dim * (2 + x_offset)
 
     return grid[row_start:row_end, col_start:col_end]
+
+
+def all_outside_subarrays(grid: np.ndarray[np.ndarray[int]]
+                          ) -> list[np.ndarray[np.ndarray[int]]]:
+    neighbors = [(i, j) for i in range(-1, 2) for j in range(-1, 2)
+                 if i != 0 or j != 0]
+
+    array_list = []
+    for y_off, x_off in neighbors:
+        array_list.append(get_offset_subarray(grid, y_off, x_off))
+    return array_list
 
 
 def mask_array(supergrid: np.ndarray[np.ndarray[int]],
