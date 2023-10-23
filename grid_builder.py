@@ -120,10 +120,9 @@ class DjikstraGrid:
             raise ValueError
 
         if orig_ids is not None:
-            dist_mat = dijkstra(self.cost_mat, directed=False,
-                                indices=orig_ids)
+            dist_mat = dijkstra(self.cost_mat, indices=orig_ids)
         else:
-            dist_mat = dijkstra(self.cost_mat, directed=False)
+            dist_mat = dijkstra(self.cost_mat)
         if dest_ids:
             return dist_mat[:, dest_ids]
         else:
@@ -286,11 +285,18 @@ class ElevationGrid(DjikstraGrid):
         if self.land_center_nodes is None:
             print('Valid origin nodes not defined: calc_center must be called')
             raise ValueError
-        center_ids = self.land_center_nodes
+        center_ids = self.grid_center.flatten()
 
         return self.eval_dijkstra(orig_ids=center_ids)
 
     def calc_center(self) -> None:
+        """
+        Defines the center subgrid of the object's grid (assuming
+        a 3x3 grid of subgrids). Requires the object to be defined
+        on a square grid of values. Assigns the results as object
+        variables.
+        :return: None
+        """
 
         if self.grid.lat_count != self.grid.lon_count:
             print('Elevation grids must be defined with symmetric dimensions')
