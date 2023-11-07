@@ -192,7 +192,7 @@ class DjikstraGrid:
 
 
 class ElevationGrid(DjikstraGrid):
-    DEEP_SEA_VALUE = -1
+    DEEP_SEA_VALUE = -9999
 
     # ------------
     # constructors
@@ -323,7 +323,8 @@ class ElevationGrid(DjikstraGrid):
             distance = haversine(start_coord, end_coord)  # kms
             cost = cf.transport_method_cost(distance, start_elev,
                                             end_elev, start_terr,
-                                            end_terr, river_travel)
+                                            end_terr, river_travel,
+                                            deep_sea_val=self.DEEP_SEA_VALUE)
             return cost
         else:
             raise ValueError

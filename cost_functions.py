@@ -23,7 +23,7 @@ def transport_method_cost(distance: float,
                           terrain_start: int,
                           terrain_end: int,
                           river_travel: bool,
-                          deep_sea_val: int = -1) -> float:
+                          deep_sea_val: int = -9999) -> float:
     """
     Calculates the total 'cost' of moving along a given distance
     modified by predefined parameters and taking into account
