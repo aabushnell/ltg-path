@@ -11,9 +11,12 @@ from __future__ import annotations
 from itertools import product
 
 import numpy as np
+import xarray as xr
+import h5netcdf
 from haversine import haversine
 from scipy.sparse import dok_matrix
 from scipy.sparse.csgraph import dijkstra
+
 
 import cost_functions as cf
 import grid_helpers as gh
@@ -87,12 +90,18 @@ class NeighborCostMatrix:
         return self.costs.__str__()
 
     @classmethod
-    def from_file(cls, filepath: str) -> NeighborCostMatrix:
-        _ = [[[0.1]]]
-        return NeighborCostMatrix(0, np.array(_))
+    def from_file(cls, filename: str) -> NeighborCostMatrix:
+        data_array_xarray = xr.open_dataarray(filename,
+                                              engine='h5netcdf')
+        grid_id = data_array_xarray.attrs['id']
+        data_array_netcdf4 = data_array_xarray.to_numpy()
+        data_array_xarray.close()
+        return NeighborCostMatrix(grid_id, data_array_netcdf4)
 
-    def to_file(self, filepath: str) -> None:
-        return
+    def to_file(self, filename: str) -> None:
+        array_32 = np.float32(self.costs)
+        (xr.DataArray(array_32, attrs={'id': self.id})
+         .to_netcdf(filename, engine='h5netcdf'))
 
     def apply_weights(self,
                       orig_weights: np.ndarray[float],
