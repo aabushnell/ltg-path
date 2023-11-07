@@ -31,7 +31,7 @@ def transport_method_cost(distance: float,
     river nodes.
     """
     if elevation_end == deep_sea_val:
-        cost = np.inf
+        cost = 1e30
     elif elevation_start >= 0 and elevation_end >= 0:  # land travel
         cost = (coeffs['flat'] * distance
                 + (elevation_change_cost(elevation_start, elevation_end)
