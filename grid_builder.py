@@ -17,7 +17,6 @@ from haversine import haversine
 from scipy.sparse import dok_matrix
 from scipy.sparse.csgraph import dijkstra
 
-
 import cost_functions as cf
 import grid_helpers as gh
 
@@ -193,7 +192,7 @@ class DjikstraGrid:
 
 
 class ElevationGrid(DjikstraGrid):
-    DEEP_SEA_DEPTH = 9999
+    DEEP_SEA_VALUE = -1
 
     # ------------
     # constructors
@@ -202,29 +201,36 @@ class ElevationGrid(DjikstraGrid):
     def __init__(self, grid_id: int,
                  elevation_array: np.ndarray[np.ndarray[int]],
                  cell_size: float, lat_start: float, lon_start: float,
+                 landlake_array: np.ndarray[np.ndarray[int]],
                  deep_sea_depth: int | None = None,
                  river_array: np.ndarray[np.ndarray[int]] | None = None):
+
+        # basic object values
         self.id = grid_id
         self.elev_arr = elevation_array
+        self.landlake_arr = landlake_array
 
         self.array_count_y = self.elev_arr.shape[0]
         self.array_count_x = self.elev_arr.shape[1]
 
+        # initialize DjikstraGrid
         super().__init__(cell_size, lat_start, lon_start,
                          self.array_count_y, self.array_count_x)
 
+        # river handling
         if river_array is None:
+            # initialize empty river array
             self.river_arr = np.zeros((self.grid.lat_count,
                                        self.grid.lon_count), dtype=np.int8)
         else:
+            # check properly defined input array
             if (river_array.shape[0] != self.grid.lat_count
                     or river_array.shape[1] != self.grid.lon_count):
                 print('River array must be same dimensions as base grid')
                 raise ValueError
             self.river_arr = river_array
 
-        self.deep_sea_depth = deep_sea_depth
-        self.elev_arr_deep = self.elev_arr.copy()
+        # define deep sea points in landlake_arr
         if deep_sea_depth is not None:
             self.mask_deep_sea(depth=deep_sea_depth)
 
@@ -238,12 +244,13 @@ class ElevationGrid(DjikstraGrid):
     @classmethod
     def from_grid(cls, grid_id: int, grid: Grid,
                   elevation_array: np.ndarray[np.ndarray[int]],
+                  landlake_array: np.ndarray[np.ndarray[int]],
                   deep_sea_depth: int | None = None,
                   river_array: np.ndarray[np.ndarray[int]] | None = None
                   ) -> ElevationGrid:
         new_grid = ElevationGrid(grid_id, elevation_array, grid.cell_size,
                                  grid.lat_start, grid.lon_start,
-                                 deep_sea_depth, river_array)
+                                 landlake_array, deep_sea_depth, river_array)
         if (elevation_array.shape[0] != grid.lat_count
                 or elevation_array.shape[1] != grid.lon_count):
             print('Elevation array dimensions do not match provided grid')
@@ -265,10 +272,13 @@ class ElevationGrid(DjikstraGrid):
 
         elev_array = gh.mask_array(self.grid.as_matrix(), mask.as_matrix(),
                                    self.elev_arr)
+        landlake_array = gh.mask_array(self.grid.as_matrix(), mask.as_matrix(),
+                                       self.landlake_arr)
         river_array = gh.mask_array(self.grid.as_matrix(), mask.as_matrix(),
                                     self.river_arr)
         new_grid = ElevationGrid.from_grid(grid_id, mask, elev_array,
-                                           deep_sea_depth, river_array)
+                                           landlake_array, deep_sea_depth,
+                                           river_array)
 
         if reset_ids:
             new_grid.grid.reset_ids()
@@ -288,8 +298,11 @@ class ElevationGrid(DjikstraGrid):
 
     def travel_cost(self, start_y: int, start_x: int,
                     end_y: int, end_x: int) -> float:
-        start_elev = self.elev_arr_deep[start_y, start_x]
-        end_elev = self.elev_arr_deep[end_y, end_x]
+        start_elev = self.elev_arr[start_y, start_x]
+        end_elev = self.elev_arr[end_y, end_x]
+
+        start_terr = self.landlake_arr[start_y, start_x]
+        end_terr = self.landlake_arr[end_y, end_x]
 
         if (self.river_arr[start_y, start_x]
                 + self.river_arr[end_y, end_x] == 2):
@@ -309,7 +322,8 @@ class ElevationGrid(DjikstraGrid):
                                           center=True)
             distance = haversine(start_coord, end_coord)  # kms
             cost = cf.transport_method_cost(distance, start_elev,
-                                            end_elev, river_travel)
+                                            end_elev, start_terr,
+                                            end_terr, river_travel)
             return cost
         else:
             raise ValueError
@@ -334,20 +348,16 @@ class ElevationGrid(DjikstraGrid):
     # ------------------
 
     def mask_deep_sea(self, depth: int,
-                      deep_sea_val: int = DEEP_SEA_DEPTH) -> None:
+                      deep_sea_val: int = DEEP_SEA_VALUE) -> None:
         for y, x in product(range(0, self.grid.lat_count),
                             range(0, self.grid.lon_count)):
-            if self.elev_arr[y, x] > 0:
-                self.elev_arr_deep[y, x] = self.elev_arr[y, x]
-            else:
+            if self.landlake_arr[y, x] < 0:
                 indices = gh.get_valid_neigbors_split(y, x, depth,
                                                       self.grid.lat_count,
                                                       self.grid.lon_count)
-                elevs = self.elev_arr_deep[indices]
-                if np.logical_and(elevs > 0, elevs < deep_sea_val).any():
-                    self.elev_arr_deep[y, x] = self.elev_arr[y, x]
-                else:
-                    self.elev_arr_deep[y, x] = deep_sea_val
+                points = self.landlake_arr[indices]
+                if not (points > 0).any():
+                    self.landlake_arr[y, x] = deep_sea_val
 
     def add_river_array(self,
                         river_array: np.ndarray[np.ndarray[int]]) -> None:

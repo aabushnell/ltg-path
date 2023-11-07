@@ -20,8 +20,10 @@ M_TO_KM = 0.001  # kilometers to meters conversion
 def transport_method_cost(distance: float,
                           elevation_start: int,
                           elevation_end: int,
+                          terrain_start: int,
+                          terrain_end: int,
                           river_travel: bool,
-                          deep_sea_val: int = 9999) -> float:
+                          deep_sea_val: int = -1) -> float:
     """
     Calculates the total 'cost' of moving along a given distance
     modified by predefined parameters and taking into account
@@ -30,16 +32,17 @@ def transport_method_cost(distance: float,
     Also features a special cost for travel between adjacent
     river nodes.
     """
-    if elevation_end == deep_sea_val:
+    if (terrain_start == deep_sea_val
+            or terrain_end == deep_sea_val):  # deep sea travel
         cost = 1e30
-    elif elevation_start >= 0 and elevation_end >= 0:  # land travel
+    elif terrain_start == 1 and terrain_end == 1:  # land travel
         cost = (coeffs['flat'] * distance
                 + (elevation_change_cost(elevation_start, elevation_end)
                 * M_TO_KM))
         if river_travel:
             # decreased cost for travel along major rivers
             cost *= coeffs['river']
-    elif elevation_start < 0 and elevation_end < 0:  # ocean travel
+    elif terrain_start <= 0 and terrain_end <= 0:  # shallow water travel
         cost = coeffs['sea'] * coeffs['flat'] * distance
     else:  # loading/unloading (from land to sea or sea to land)
         cost = coeffs['loading'] + coeffs['flat'] * distance
