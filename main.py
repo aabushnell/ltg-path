@@ -7,9 +7,9 @@ import rasterize_rivers as rr
 
 CELL_SIZE = 1 / 12
 
-elev_full = fr.read_elevation_full()
-landlake_full = fr.read_landlake_full()
-river_full = rr.read_rivers_raster(cellsize=CELL_SIZE)
+elev_full = fr.read_elevation_nc()
+landlake_full = fr.read_landlake_nc()
+river_full = fr.read_rivers_nc()
 full_elev_grid = gb.ElevationGrid(-1, elev_full, cell_size=CELL_SIZE,
                                   lat_start=0, lon_start=0,
                                   landlake_array=landlake_full,
@@ -36,7 +36,7 @@ grid = full_elev_grid.subgrid(1, Y_START, X_START, y_end, x_end)
 print(grid.grid)
 print(grid.elev_arr)
 print(grid.landlake_arr)
-grid.mask_deep_sea(3)
+grid.mask_deep_sea(2)
 print(grid.landlake_arr)
 
 # grid.build_cost_matrix()
