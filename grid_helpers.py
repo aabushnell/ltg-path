@@ -1,10 +1,16 @@
 """
 TODO
 """
+from __future__ import annotations
+
 import math
 from itertools import product
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from grid_builder import DataGrid
 
 
 def coord_to_index(lat: float, lon: float, cell_size: float,
@@ -29,7 +35,8 @@ def coord_to_index(lat: float, lon: float, cell_size: float,
 
 def index_to_coord(y: int, x: int, cell_size: float,
                    lat_start: float = 90, lon_start: float = 0,
-                   center: bool = False) -> tuple[float, float]:
+                   center: bool = False,
+                   normalize_lon: bool = False) -> tuple[float, float]:
     """
     Converts index points (y -> latitude, x -> longitude) of a grid
     with height and width of 'cell_size' to the latitude and longitude
@@ -40,14 +47,21 @@ def index_to_coord(y: int, x: int, cell_size: float,
     """
     offset = 1 / 2 if center else 0
     lat = lat_start - cell_size * (y + offset)
-    lon = lon_start + cell_size * (x + offset)
+    lon = (lon_start + cell_size * (x + offset)) % 360
+    if normalize_lon and lon > 180:
+        lon -= 360
     return lat, lon
 
 
-def get_valid_neighbors(y_pos: int, x_pos: int, depth: int,
-                        y_dim: int, x_dim: int) -> list[tuple[int, int]]:
+def get_valid_neighbors(y_pos: int,
+                        x_pos: int,
+                        depth: int,
+                        y_dim: int,
+                        x_dim: int,
+                        overflow: bool = False) -> list[tuple[int, int]]:
     """
     Returns the relative positions of valid neighbor points in a 2D grid.
+    :param overflow: Allows neighboring points to roll over past zero
     :param y_pos: The y-coordinate of center point in grid
     :param x_pos: The x-coordinate of center point in grid
     :param depth: The number of steps away from center point to search
@@ -55,12 +69,19 @@ def get_valid_neighbors(y_pos: int, x_pos: int, depth: int,
     :param x_dim: The number of points in grid along x-axis
     :return: A list of tuples (y-position, x-position) of valid neighbors
     """
-    return [(y_pos + dy, x_pos + dx) for dy, dx
-            in product(range(-1 * depth, depth + 1),
-                       range(-1 * depth, depth + 1))
-            if (dy != 0 or dx != 0)
-            and 0 <= y_pos + dy < y_dim
-            and 0 <= x_pos + dx < x_dim]
+    if overflow:
+        return [((y_pos + dy + y_dim) % y_dim,
+                 (x_pos + dx + x_dim) % x_dim) for dy, dx
+                in product(range(-1 * depth, depth + 1),
+                           range(-1 * depth, depth + 1))
+                if (dy != 0 or dx != 0)]
+    else:
+        return [(y_pos + dy, x_pos + dx) for dy, dx
+                in product(range(-1 * depth, depth + 1),
+                           range(-1 * depth, depth + 1))
+                if (dy != 0 or dx != 0)
+                and 0 <= y_pos + dy < y_dim
+                and 0 <= x_pos + dx < x_dim]
 
 
 def get_valid_neigbors_split(y_pos: int, x_pos: int, depth: int,
@@ -128,3 +149,38 @@ def mask_array(supergrid: np.ndarray[np.ndarray[int]],
     x2 = lr[1][0]
 
     return values[y1:(y2 + 1), x1:(x2 + 1)]
+
+
+def combine_grid_neighbors(top_left: DataGrid,
+                           top: DataGrid,
+                           top_right: DataGrid,
+                           left: DataGrid,
+                           center: DataGrid,
+                           right: DataGrid,
+                           bottom_left: DataGrid,
+                           bottom: DataGrid,
+                           bottom_right: DataGrid) -> DataGrid:
+    return ((top_left
+             .join(top, side='r')
+             .join(top_right, side='r'))
+            .join((left
+                   .join(center, side='r')
+                   .join(right, side='r')), side='b')
+            .join((bottom_left
+                   .join(bottom, side='r')
+                   .join(bottom_right, side='r')), side='b'))
+
+
+def get_grid_neighbors(data: DataGrid,
+                       y_start: int, x_start: int,
+                       y_end: int, x_end: int,
+                       coarse_dim: int) -> DataGrid:
+    offsets = [(y, x) for (y, x) in product(range(-1, 2), range(-1, 2))]
+    subgrids = [data.subgrid(y_start + (y * coarse_dim),
+                             (x_start + (x * coarse_dim)
+                              + 4320) % 4320,
+                             y_end + (y * coarse_dim),
+                             (x_end + (x * coarse_dim)
+                              + 4320) % 4320)
+                for (y, x) in offsets]
+    return combine_grid_neighbors(*subgrids)

@@ -68,3 +68,42 @@ def read_rivers_nc() -> np.ndarray[np.ndarray[int]]:
     data_array_netcdf4 = data_array_xarray.to_numpy()
     data_array_xarray.close()
     return data_array_netcdf4
+
+
+def read_weights_nc() -> np.ndarray[np.ndarray[int]]:
+    path = './data/weights.nc'
+    data_array_xarray = xr.open_dataarray(path,
+                                          engine='h5netcdf')
+    data_array_netcdf4 = data_array_xarray.to_numpy()
+    data_array_xarray.close()
+    return data_array_netcdf4
+
+
+def read_weights_sea_nc() -> np.ndarray[np.ndarray[int]]:
+    path = './data/weights_sea.nc'
+    data_array_xarray = xr.open_dataarray(path,
+                                          engine='h5netcdf')
+    data_array_netcdf4 = data_array_xarray.to_numpy()
+    data_array_xarray.close()
+    return data_array_netcdf4
+
+
+def read_nc(path: str) -> np.ndarray:
+    data_array_xarray = xr.open_dataarray(path,
+                                          engine='h5netcdf')
+    data_array_netcdf4 = data_array_xarray.to_numpy()
+    data_array_xarray.close()
+    return data_array_netcdf4
+
+
+def read_costs(y: int, x: int, path_prefix: str) -> np.ndarray | None:
+    path_suffix = f'{y}/{x}.nc'
+    data_array_xarray = xr.open_dataarray(path_prefix + path_suffix,
+                                          engine='h5netcdf')
+    data_array_netcdf4 = data_array_xarray.to_numpy()
+    data_array_xarray.close()
+    return np.float64(data_array_netcdf4)
+
+
+def save_nc(path: str, data: np.ndarray) -> None:
+    xr.DataArray(data).to_netcdf(path, engine='h5netcdf')
