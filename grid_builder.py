@@ -516,6 +516,138 @@ class BilateralCostGridSea(BilateralCostGrid):
             raise ValueError
 
 
+class FineGrid(DjikstraGrid):
+    DEEP_SEA_VALUE = -2
+
+    def __init__(self, 
+                 cell_size: float,
+                 lat_start: float,
+                 lon_start: float,
+                 cost_coeffs: dict[str, float],
+                 elevation_array: DataGrid,
+                 landlake_array: DataGrid,
+                 river_array: DataGrid | None = None,
+                 deep_sea_depth: int | None = None):
+
+        self.elev_arr = elevation_array
+        self.landlake_arr = landlake_array
+
+        self.cost_coeffs = cost_coeffs
+
+        self.array_count_y = self.elev_arr.lat_count
+        self.array_count_x = self.elev_arr.lon_count
+
+        super().__init__(cell_size,
+                         lat_start,
+                         lon_start,
+                         self.array_count_y, 
+                         self.array_count_x)
+
+        if river_array is None:
+            # initialize empty river array
+            zero_arr = np.zeros((self.grid.lat_count,
+                                 self.grid.lon_count),
+                                dtype=np.int8)
+            self.river_arr = DataGrid(zero_arr,
+                                      self.grid.cell_size,
+                                      self.grid.lat_start,
+                                      self.grid.lon_start)
+        else:
+            # check properly defined input array
+            if (river_array.lat_count != self.grid.lat_count
+                    or river_array.lon_count != self.grid.lon_count):
+                print('River array must be same dimensions as base grid')
+                raise ValueError
+            self.river_arr = river_array
+
+        # define deep sea points in landlake_arr
+        if deep_sea_depth is not None:
+            self.mask_deep_sea(depth=deep_sea_depth)
+        self.deep_sea_depth = deep_sea_depth
+
+    def mask_deep_sea(self,
+                      depth: int,
+                      deep_sea_val: int = DEEP_SEA_VALUE) -> None:
+
+        for y, x in product(range(0, self.grid.lat_count),
+                            range(0, self.grid.lon_count)):
+            if self.landlake_arr.loc(y, x) < 1: # 1 => Land
+                indices = gh.get_valid_neigbors_split(y, x, depth,
+                                                      self.grid.lat_count,
+                                                      self.grid.lon_count)
+                nbr_points = self.landlake_arr.from_indices(indices)
+                if not (nbr_points > 0).any(): # 0 => Lake, -1 => Sea 
+                    self.landlake_arr.assign(y, x, deep_sea_val)
+
+    def travel_distance(self,
+                        start_y: int, 
+                        start_x: int,
+                        end_y: int, 
+                        end_x: int):
+
+        start_coord = gh.index_to_coord(start_y, start_x,
+                                        self.grid.cell_size,
+                                        lat_start=self.grid.lat_start,
+                                        lon_start=self.grid.lon_start,
+                                        center=True, normalize_lon=True)
+        end_coord = gh.index_to_coord(end_y, end_x, self.grid.cell_size,
+                                      lat_start=self.grid.lat_start,
+                                      lon_start=self.grid.lon_start,
+                                      center=True, normalize_lon=True)
+        return haversine(start_coord, end_coord)  # kms
+
+    def travel_cost(self, 
+                    start_y: int, 
+                    start_x: int,
+                    end_y: int, 
+                    end_x: int) -> float:
+
+        start_elev = self.elev_arr.loc(start_y, start_x)
+        end_elev = self.elev_arr.loc(end_y, end_x)
+
+        start_terr = self.landlake_arr.loc(start_y, start_x)
+        end_terr = self.landlake_arr.loc(end_y, end_x)
+
+        if (self.river_arr.loc(start_y, start_x)
+                + self.river_arr.loc(end_y, end_x) == 2):
+            river_travel = True
+        else:
+            river_travel = False
+
+        if start_elev != np.nan and end_elev != np.nan:
+            distance = self.travel_distance(start_y, start_x, end_y, end_x)
+            cost = cf.transport_method_cost(distance, 
+                                            start_elev,
+                                            end_elev, 
+                                            start_terr,
+                                            end_terr, 
+                                            river_travel,
+                                            deep_sea_val=self.DEEP_SEA_VALUE,
+                                            coeffs = self.cost_coeffs,
+                                            allow_deep = True,
+                                            allow_lake = False)
+            return cost
+        else:
+            raise ValueError
+
+    def build_cost_matrix(self) -> dok_matrix:
+        cost_mat = dok_matrix((self.grid.cell_count, self.grid.cell_count))
+
+        for i, j in product(range(0, self.grid.lat_count),
+                            range(0, self.grid.lon_count)):
+            id_orig = self.grid.node_id(i, j)
+            for i2, j2 in gh.get_valid_neighbors(i, j, 1,
+                                                 self.grid.lat_count,
+                                                 self.grid.lon_count,
+                                                 overflow=True):
+                cost_mat[id_orig, self.grid.node_id(i2, j2)] = (
+                    self.travel_cost(i, j, i2, j2)
+                )
+
+        self.assign_cost_mat(cost_mat)
+        return cost_mat
+
+
 class CoarseGrid(DjikstraGrid):
     EMBARK_COST = 50
 

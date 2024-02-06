@@ -29,7 +29,7 @@ def read_elevation_dat() -> np.ndarray[np.ndarray[int]]:
 
 
 def read_elevation_nc() -> np.ndarray[np.ndarray[int]]:
-    path = '/Users/aaron/Documents/Work/Code/Pathfinding/data/elevation.nc'
+    path = './data/elevation.nc'
     data_array_xarray = xr.open_dataarray(path,
                                           engine='h5netcdf')
     data_array_netcdf4 = data_array_xarray.to_numpy()
@@ -53,7 +53,7 @@ def read_landlake_asc() -> np.ndarray[np.ndarray[int]]:
 
 
 def read_landlake_nc() -> np.ndarray[np.ndarray[int]]:
-    path = '/Users/aaron/Documents/Work/Code/Pathfinding/data/landlake.nc'
+    path = './data/landlake.nc'
     data_array_xarray = xr.open_dataarray(path,
                                           engine='h5netcdf')
     data_array_netcdf4 = data_array_xarray.to_numpy()
@@ -62,7 +62,7 @@ def read_landlake_nc() -> np.ndarray[np.ndarray[int]]:
 
 
 def read_rivers_nc() -> np.ndarray[np.ndarray[int]]:
-    path = '/Users/aaron/Documents/Work/Code/Pathfinding/data/rivers.nc'
+    path = './data/rivers.nc'
     data_array_xarray = xr.open_dataarray(path,
                                           engine='h5netcdf')
     data_array_netcdf4 = data_array_xarray.to_numpy()
