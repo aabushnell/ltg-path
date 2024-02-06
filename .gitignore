@@ -7,7 +7,3 @@
 
 # generic scratch file
 scratch.py
-
-venv/
-
-weighted_costs*
