@@ -29,12 +29,15 @@ coeffs = {
     'river': 0.9,  # cost per km (horizontal) premium
 }
 
+uli = gh.coord_to_index(ul[0], ul[1], 1/12, 90, 0)
+lri = gh.coord_to_index(lr[0], lr[1], 1/12, 90, 0)
+
 elev_full = gb.DataGrid(fr.read_elevation_nc(), CELL_SIZE, 90, 0)
-elev = elev_full.subgrid(ul[0], ul[1], lr[0], lr[1])
+elev = elev_full.subgrid(uli[0], uli[1], lri[0], lri[1])
 landlake_full = gb.DataGrid(fr.read_landlake_nc(), CELL_SIZE, 90, 0)
-landlake = landlake_full.subgrid(ul[0], ul[1], lr[0], lr[1])
+landlake = landlake_full.subgrid(uli[0], uli[1], lri[0], lri[1])
 river_full = gb.DataGrid(fr.read_rivers_nc(), CELL_SIZE, 90, 0)
-river = river_full.subgrid(ul[0], ul[1], lr[0], lr[1])
+river = river_full.subgrid(uli[0], uli[1], lri[0], lri[1])
 
 grid = gb.FineGrid(CELL_SIZE, 
                    ul[0], 
